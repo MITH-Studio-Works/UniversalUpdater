@@ -1,0 +1,76 @@
+import tkinter as tk
+from tkinter import scrolledtext
+import subprocess
+import threading
+
+def run_updates(log_area, button):
+    # Disable the button so the user can't double-click while it runs
+    button.config(state=tk.DISABLED)
+    log_area.insert(tk.END, "Initializing system-wide updates...\n")
+    log_area.see(tk.END)
+
+    # Define the WinGet update command with automatic agreement acceptance
+    command = [
+        "winget", "upgrade", "--all", 
+        "--silent", 
+        "--accept-package-agreements", 
+        "--accept-source-agreements",
+        "--include-unknown"
+    ]
+
+    try:
+        # Start the background process and redirect output to our GUI
+        process = subprocess.Popen(
+            command, 
+            stdout=subprocess.PIPE, 
+            stderr=subprocess.STDOUT, 
+            text=True, 
+            shell=True
+        )
+
+        # Read the command line output line-by-line as it happens
+        for line in process.stdout:
+            log_area.insert(tk.END, line)
+            log_area.see(tk.END) # Scroll to the bottom automatically
+
+        process.wait()
+        log_area.insert(tk.END, "\n[Finished] All eligible applications have been updated successfully.\n")
+    except Exception as e:
+        log_area.insert(tk.END, f"\n[Error] Failed to execute update engine: {str(e)}\n")
+    
+    # Re-enable the button when finished
+    button.config(state=tk.NORMAL)
+    log_area.see(tk.END)
+
+def start_update_thread(log_area, button):
+    # Run the update process in a separate thread to keep the window responsive
+    threading.Thread(target=run_updates, args=(log_area, button), daemon=True).start()
+
+# Build the main desktop window
+root = tk.Tk()
+root.title("Universal App Updater")
+root.geometry("650x450")
+
+# Setup layout frames
+frame = tk.Frame(root, padx=10, pady=10)
+frame.pack(fill=tk.BOTH, expand=True)
+
+# Add action button
+update_btn = tk.Button(
+    frame, 
+    text="Scan & Update All Software", 
+    command=lambda: start_update_thread(log_area, update_btn),
+    bg="#1a73e8", 
+    fg="white", 
+    font=("Arial", 11, "bold"), 
+    pady=8
+)
+update_btn.pack(fill=tk.X, pady=(0, 10))
+
+# Add the output log tracking area
+log_area = scrolledtext.ScrolledText(frame, wrap=tk.WORD, font=("Consolas", 10))
+log_area.pack(fill=tk.BOTH, expand=True)
+log_area.insert(tk.END, "Ready. Click the button above to begin fetching updates.\n")
+
+# Fire up the application loop
+root.mainloop()
